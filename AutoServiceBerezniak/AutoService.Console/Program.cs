@@ -1,78 +1,75 @@
-using AutoService.Common.Models;
-using AutoService.Common.Services;
+using AutoService.Infrastructure;
+using AutoService.Infrastructure.Models;
+using Microsoft.EntityFrameworkCore;
 
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 
-Console.WriteLine("=== Лабораторна робота №2 ===");
-Console.WriteLine("Багатопотоковість. Асинхронність. LINQ.");
+Console.WriteLine("=== Лабораторна робота №3 ===");
 Console.WriteLine();
 
-var service = new CrudServiceAsync<Car>("cars.json");
+using var context = new AutoServiceContext();
 
-object locker = new object();
-int count = 0;
+Console.WriteLine("Шлях до БД:");
+Console.WriteLine(context.Database.GetDbConnection().DataSource);
 
-// приклад lock + Parallel.For
-Parallel.For(0, 1000, i =>
+context.Database.EnsureCreated();
+
+// якщо база порожня
+if (!context.Clients.Any())
 {
-    var car = Car.CreateNew();
-
-    service.CreateAsync(car).GetAwaiter().GetResult();
-
-    lock (locker)
+    var client = new ClientModel
     {
-        count++;
-    }
-});
+        FullName = "Іван Петренко",
+        PhoneNumber = "+380501112233",
+        Email = "ivan@gmail.com"
+    };
 
-Console.WriteLine($"Створено автомобілів: {count}");
+    var mechanic = new MechanicModel
+    {
+        FullName = "Андрій Коваль",
+        Specialization = "Двигун"
+    };
 
-var cars = (await service.ReadAllAsync()).ToList();
+    var car = new CarModel
+    {
+        Brand = "Toyota",
+        Model = "Camry",
+        Year = 2018
+    };
 
-Console.WriteLine();
-Console.WriteLine("LINQ аналіз пробігу:");
-Console.WriteLine($"Мінімальний пробіг: {cars.Min(x => x.Mileage)} км");
-Console.WriteLine($"Максимальний пробіг: {cars.Max(x => x.Mileage)} км");
-Console.WriteLine($"Середній пробіг: {cars.Average(x => x.Mileage):F2} км");
+    var passport = new CarPassportModel
+    {
+        PassportNumber = "AA123456",
+        Car = car
+    };
 
-Console.WriteLine();
-Console.WriteLine("Приклад пагінації — перші 10 авто:");
+    var order = new RepairOrderModel
+    {
+        Description = "Заміна масла",
+        Price = 2500,
+        Client = client,
+        Mechanic = mechanic,
+        Car = car
+    };
 
-var page = await service.ReadAllAsync(1, 10);
+    context.Clients.Add(client);
+    context.Mechanics.Add(mechanic);
+    context.Cars.Add(car);
+    context.CarPassports.Add(passport);
+    context.RepairOrders.Add(order);
 
-foreach (var car in page)
-{
-    Console.WriteLine(car.GetCarInfo());
+    context.SaveChanges();
+
+    Console.WriteLine("Тестові дані додані у БД.");
 }
 
-// приклад SemaphoreSlim
-var semaphore = new SemaphoreSlim(1, 1);
-await semaphore.WaitAsync();
-try
+Console.WriteLine();
+Console.WriteLine("Список замовлень:");
+
+foreach (var order in context.RepairOrders)
 {
-    Console.WriteLine();
-    Console.WriteLine("SemaphoreSlim використано для синхронізації доступу.");
+    Console.WriteLine($"{order.Description} - {order.Price} грн");
 }
-finally
-{
-    semaphore.Release();
-}
-
-// приклад AutoResetEvent
-var autoResetEvent = new AutoResetEvent(false);
-
-Task.Run(() =>
-{
-    Thread.Sleep(500);
-    autoResetEvent.Set();
-});
-
-autoResetEvent.WaitOne();
-
-Console.WriteLine("AutoResetEvent спрацював успішно.");
-
-await service.SaveAsync();
 
 Console.WriteLine();
-Console.WriteLine("Колекцію збережено у файл cars.json");
-Console.WriteLine("Лабораторна робота №2 виконана успішно.");
+Console.WriteLine("База даних працює успішно.");
